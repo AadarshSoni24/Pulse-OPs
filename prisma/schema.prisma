@@ -1,0 +1,206 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum IncidentStatus {
+  ACTIVE
+  INVESTIGATING
+  RESOLVED
+}
+
+model User {
+  id           String            @id @default(uuid())
+  name         String
+  email        String            @unique
+  passwordHash String
+  googleId     String?           @unique
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  
+  refreshTokens RefreshToken[]
+  ownedWorkspaces Workspace[]    @relation("WorkspaceOwner")
+  memberships  WorkspaceMember[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model Workspace {
+  id        String            @id @default(uuid())
+  name      String
+  ownerId   String
+  owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  members     WorkspaceMember[]
+  monitors    Monitor[]
+  statusPages StatusPage[]
+  apiKeys     ApiKey[]
+  auditLogs   AuditLog[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role      @default(DEVELOPER)
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String    @unique
+  prefix      String
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("api_keys")
+}
+
+model Monitor {
+  id             String    @id @default(uuid())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name           String
+  url            String
+  method         String    @default("GET")
+  interval       Int       @default(60) // Check interval in seconds
+  timeout        Int       @default(5000) // Timeout in ms
+  expectedStatus Int       @default(200)
+  isActive       Boolean   @default(true)
+  lastCheckedAt  DateTime?
+  nextCheckAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  healthChecks   HealthCheck[]
+  incidents      Incident[]
+  sslCertificate SslCertificate?
+
+  @@index([workspaceId])
+  @@index([isActive, nextCheckAt])
+  @@map("monitors")
+}
+
+model HealthCheck {
+  id           String   @id @default(uuid())
+  monitorId    String
+  monitor      Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  statusCode   Int?
+  responseTime Int?     // ms
+  dnsTime      Int?     // ms
+  tlsTime      Int?     // ms
+  success      Boolean
+  errorMessage String?
+  checkedAt    DateTime @default(now())
+
+  @@index([monitorId, checkedAt])
+  @@map("health_checks")
+}
+
+model Incident {
+  id         String         @id @default(uuid())
+  monitorId  String
+  monitor    Monitor        @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  status     IncidentStatus @default(ACTIVE)
+  startedAt  DateTime       @default(now())
+  resolvedAt DateTime?
+  reason     String
+  duration   Int?           // seconds
+
+  notifications Notification[]
+
+  @@index([monitorId, status])
+  @@map("incidents")
+}
+
+model SslCertificate {
+  id            String   @id @default(uuid())
+  monitorId     String   @unique
+  monitor       Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  expiryDate    DateTime
+  issuer        String
+  daysRemaining Int
+  lastChecked   DateTime @default(now())
+
+  @@map("ssl_certificates")
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  channel    String   @default("EMAIL")
+  recipient  String
+  status     String   @default("SENT")
+  sentAt     DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model StatusPage {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String    @unique
+  isPublic    Boolean   @default(true)
+  monitorIds  String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("status_pages")
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId])
+  @@map("audit_logs")
+}
