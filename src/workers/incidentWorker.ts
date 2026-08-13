@@ -68,3 +68,9 @@ export const incidentWorker = new Worker<IncidentJobData>(
   },
   { connection: redisConnectionOptions, concurrency: 5 }
 );
+
+incidentWorker.on('error', (err) => {
+  if (process.env.NODE_ENV !== 'test') {
+    logger.error('Incident Worker Redis error', { error: err.message });
+  }
+});

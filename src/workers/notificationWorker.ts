@@ -73,3 +73,9 @@ export const notificationWorker = new Worker<NotificationJobData>(
   },
   { connection: redisConnectionOptions, concurrency: 5 }
 );
+
+notificationWorker.on('error', (err) => {
+  if (process.env.NODE_ENV !== 'test') {
+    logger.error('Notification Worker Redis error', { error: err.message });
+  }
+});

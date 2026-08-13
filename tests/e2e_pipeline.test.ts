@@ -1,6 +1,17 @@
 import { SchedulerWorker } from '../src/workers/schedulerWorker';
 import { prisma } from '../src/config/database';
-import { healthCheckQueue, incidentQueue, notificationQueue } from '../src/config/redis';
+import { healthCheckQueue } from '../src/config/redis';
+
+jest.mock('bullmq', () => {
+  const actual = jest.requireActual('bullmq');
+  return {
+    ...actual,
+    Worker: jest.fn().mockImplementation(() => ({
+      on: jest.fn(),
+      close: jest.fn().mockResolvedValue(undefined)
+    }))
+  };
+});
 
 jest.mock('../src/config/database', () => ({
   prisma: {
@@ -27,16 +38,20 @@ jest.mock('../src/config/database', () => ({
 
 jest.mock('../src/config/redis', () => ({
   healthCheckQueue: {
-    add: jest.fn().mockResolvedValue({ id: 'job-1' })
+    add: jest.fn().mockResolvedValue({ id: 'job-1' }),
+    on: jest.fn()
   },
   incidentQueue: {
-    add: jest.fn().mockResolvedValue({ id: 'inc-job-1' })
+    add: jest.fn().mockResolvedValue({ id: 'inc-job-1' }),
+    on: jest.fn()
   },
   notificationQueue: {
-    add: jest.fn().mockResolvedValue({ id: 'notif-job-1' })
+    add: jest.fn().mockResolvedValue({ id: 'notif-job-1' }),
+    on: jest.fn()
   },
   sslCheckQueue: {
-    add: jest.fn().mockResolvedValue({ id: 'ssl-job-1' })
+    add: jest.fn().mockResolvedValue({ id: 'ssl-job-1' }),
+    on: jest.fn()
   }
 }));
 
@@ -80,27 +95,24 @@ describe('Core Event-Driven Pipeline & Incident Lifecycle Test', () => {
   });
 
   it('should handle incident lifecycle: single continuous outage = 1 incident (de-duplication)', async () => {
-    // 1. Simulate 2 consecutive failures
     const mockFailures = [
       { id: 'c-1', success: false, statusCode: 500 },
       { id: 'c-2', success: false, statusCode: 500 }
     ];
     (prisma.healthCheck.findMany as jest.Mock).mockResolvedValue(mockFailures);
 
-    // Initial check: no active incident
     (prisma.incident.findFirst as jest.Mock).mockResolvedValueOnce(null);
 
     const createdIncident = {
       id: 'inc-active-1',
       monitorId: 'mon-e2e',
       status: 'ACTIVE',
-      startedAt: new Date(Date.now() - 300000), // Started 5 mins ago
+      startedAt: new Date(Date.now() - 300000),
       reason: 'Expected HTTP 200, received HTTP 500'
     };
 
     (prisma.incident.create as jest.Mock).mockResolvedValue(createdIncident);
 
-    // 2. Incident created trigger test
     const incidentData = {
       type: 'FAILURE',
       monitorId: 'mon-e2e',
@@ -109,13 +121,10 @@ describe('Core Event-Driven Pipeline & Incident Lifecycle Test', () => {
 
     expect(incidentData.type).toBe('FAILURE');
 
-    // 3. Verify anti-duplication: second failure when incident is ALREADY ACTIVE
     (prisma.incident.findFirst as jest.Mock).mockResolvedValueOnce(createdIncident);
 
-    // Active incident exists -> no new incident created
     expect(createdIncident.status).toBe('ACTIVE');
 
-    // 4. Endpoint Recovers -> Incident Resolved
     (prisma.incident.findFirst as jest.Mock).mockResolvedValueOnce(createdIncident);
     (prisma.incident.update as jest.Mock).mockResolvedValue({
       ...createdIncident,
@@ -134,6 +143,6 @@ describe('Core Event-Driven Pipeline & Incident Lifecycle Test', () => {
     });
 
     expect(resolvedIncident.status).toBe('RESOLVED');
-    expect(resolvedIncident.duration).toBe(300); // 300 seconds downtime accurately computed!
+    expect(resolvedIncident.duration).toBe(300);
   });
 });

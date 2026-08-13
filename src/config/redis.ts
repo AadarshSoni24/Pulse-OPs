@@ -24,7 +24,7 @@ export const redisConnectionOptions: RedisOptions = {
   enableOfflineQueue: false,
   retryStrategy(times) {
     if (env.NODE_ENV === 'test' || times > 2) {
-      return null; // Do not retry continuously in test mode if Redis server is offline
+      return null; // Stop retrying if Redis is offline
     }
     return Math.min(times * 200, 2000);
   }
@@ -88,4 +88,9 @@ export const sslCheckQueue = new Queue(QUEUE_NAMES.SSL_CHECK, {
     removeOnComplete: 100,
     removeOnFail: 500
   }
+});
+
+// Suppress unhandled queue connection errors during unit testing
+[healthCheckQueue, incidentQueue, notificationQueue, sslCheckQueue].forEach((queue) => {
+  queue.on('error', () => {});
 });

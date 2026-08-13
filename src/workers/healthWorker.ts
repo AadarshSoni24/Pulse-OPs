@@ -162,3 +162,9 @@ export const healthCheckWorker = new Worker<HealthCheckJobData>(
   },
   { connection: redisConnectionOptions, concurrency: 10 }
 );
+
+healthCheckWorker.on('error', (err) => {
+  if (process.env.NODE_ENV !== 'test') {
+    logger.error('Health Check Worker Redis error', { error: err.message });
+  }
+});

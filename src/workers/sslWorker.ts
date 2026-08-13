@@ -74,3 +74,9 @@ export const sslWorker = new Worker<SslCheckJobData>(
   },
   { connection: redisConnectionOptions, concurrency: 5 }
 );
+
+sslWorker.on('error', (err) => {
+  if (process.env.NODE_ENV !== 'test') {
+    logger.error('SSL Worker Redis error', { error: err.message });
+  }
+});

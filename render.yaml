@@ -1,0 +1,73 @@
+services:
+  - type: web
+    name: pulseops-api
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    dockerTarget: runner
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pulseops-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: pulseops-redis
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+  - type: worker
+    name: pulseops-health-worker
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    dockerTarget: runner
+    startCommand: npm run worker:health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pulseops-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: pulseops-redis
+          property: connectionString
+
+  - type: worker
+    name: pulseops-scheduler-worker
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    dockerTarget: runner
+    startCommand: npm run worker:scheduler
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pulseops-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: pulseops-redis
+          property: connectionString
+
+databases:
+  - name: pulseops-db
+    databaseName: pulseops
+    user: postgres
+    plan: free
