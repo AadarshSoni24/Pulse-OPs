@@ -15,9 +15,13 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "db:seed": "prisma db seed",
     "test": "jest --detectOpenHandles --forceExit",
     "test:coverage": "jest --coverage",
     "lint": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",

@@ -66,11 +66,28 @@ app.use(errorHandler);
 
 export default app;
 
+import { prisma } from './config/database';
+import { redisClient } from './config/redis';
+
 if (process.env.NODE_ENV !== 'test') {
   connectDatabase().then(() => {
-    app.listen(env.PORT, () => {
+    const server = app.listen(env.PORT, () => {
       logger.info(`🚀 PulseOps Backend API running on port ${env.PORT}`);
       logger.info(`📚 Swagger OpenAPI documentation available at http://localhost:${env.PORT}/api-docs`);
     });
+
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`Received ${signal}. Initiating graceful shutdown...`);
+      server.close(async () => {
+        logger.info('HTTP server closed cleanly.');
+        await prisma.$disconnect();
+        await redisClient.quit();
+        logger.info('Database & Redis connections disconnected. Process exiting.');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   });
 }

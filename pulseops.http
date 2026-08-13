@@ -1,0 +1,61 @@
+### PulseOps REST API Quick-Start Requests
+
+@baseUrl = http://localhost:4000/api/v1
+@authToken = your_jwt_access_token_here
+@workspaceId = your_workspace_id_here
+@monitorId = your_monitor_id_here
+
+### 1. Health Check
+GET http://localhost:4000/health
+
+### 2. Telemetry & Queue Depths
+GET {{baseUrl}}/metrics
+
+### 3. Register User
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "demo@pulseops.com",
+  "password": "Password123!",
+  "name": "Demo User"
+}
+
+### 4. Login User
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@pulseops.com",
+  "password": "Password123!"
+}
+
+### 5. Get Authenticated User Profile
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+
+### 6. Create Monitor
+POST {{baseUrl}}/workspaces/{{workspaceId}}/monitors
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "GitHub Status API",
+  "url": "https://www.githubstatus.com/api/v2/status.json",
+  "method": "GET",
+  "interval": 30,
+  "timeout": 5000,
+  "expectedStatus": 200
+}
+
+### 7. List Workspace Monitors
+GET {{baseUrl}}/workspaces/{{workspaceId}}/monitors
+Authorization: Bearer {{authToken}}
+
+### 8. Get Monitor Analytics (Uptime %, Percentiles, MTTR, MTBF)
+GET {{baseUrl}}/workspaces/{{workspaceId}}/monitors/{{monitorId}}/analytics
+Authorization: Bearer {{authToken}}
+
+### 9. Get Unauthenticated Public Status Page
+GET {{baseUrl}}/status/acme-corp
